@@ -9,8 +9,10 @@ defmodule RateLimiter do
   # Max of 5 requests per minute
   @max_per_minute 5
   @clear_after :timer.seconds(60)
+  @table :rate_limiter_requests
 
   ### Client
+
   @doc """
   Start service
   """
@@ -19,42 +21,39 @@ defmodule RateLimiter do
   end
 
   @doc """
-  Send request and add it to state
+  Send request and update counter on ETS table
   ## Examples
     RateLimiter.log("user1")
     RateLimiter.log("user2")
   """
   def log(uid) do
-    GenServer.call(__MODULE__, {:log, uid})
+    case :ets.update_counter(@table, uid, {2, 1}, {uid, 0}) do
+      count when count > @max_per_minute ->
+        {:error, :rate_limited}
+      _count ->
+        :ok
+    end
   end
 
   ### Server
 
   def init(_) do
+    # Create ETS table when initiating service
+    Logger.debug("Creating #{@table} table...")
+    :ets.new(@table, [:set, :named_table, :public, read_concurrency: true, write_concurrency: true])
     schedule_clear()
-    {:ok, %{requests: %{}}}
+    {:ok, %{}}
   end
 
   def handle_info(:clear, state) do
-    Logger.debug("Clearing requests...")
+    # Clear table
+    Logger.debug("Clearing requests from table...")
+    :ets.delete_all_objects(@table)
     schedule_clear()
-    {:noreply, %{state | requests: %{}}}
+    {:noreply, state}
   end
 
-  def handle_call({:log, uid}, _from, state) do
-    # If user exists on current state
-    case state.requests[uid] do
-      # If no previous count or count is less than limit.
-      count when is_nil(count) or count < @max_per_minute ->
-        {:reply, :ok, put_in(state, [:requests, uid], (count || 0) + 1)}
-      # If limit is reached.
-      count when count >= @max_per_minute ->
-        {:reply, {:error, :rate_limited}, state}
-    end
-  end
-
-  # Private
-
+  # Clear table every 60 secs
   defp schedule_clear do
     Process.send_after(self(), :clear, @clear_after)
   end
