@@ -5,7 +5,7 @@ defmodule RateLimiter do
 
   use GenServer
   require Logger
-  
+
   # Max of 5 requests per minute
   @max_per_minute 5
   @clear_after :timer.seconds(60)
@@ -56,6 +56,6 @@ defmodule RateLimiter do
   # Private
 
   defp schedule_clear do
-    Process.send(self(), :clear, @clear_after)
+    Process.send_after(self(), :clear, @clear_after)
   end
 end
