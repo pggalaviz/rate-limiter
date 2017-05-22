@@ -31,7 +31,7 @@ iex> RateLimiter.log("user1")
 {:error, :rate_limited}
 iex> RateLimiter.log("user1")
 {:error, :rate_limited}
-iex> :ets.tan2list(:rate_limiter_requests)
+iex> :ets.tab2list(:rate_limiter_requests)
 [{"user1", 7}]
 ```
 
